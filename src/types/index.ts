@@ -3,12 +3,105 @@ export interface Position {
   y: number;
 }
 
+// Tower types
+export type TowerType = 'archer' | 'cannon' | 'slow';
+
+export interface TowerConfig {
+  name: string;
+  cost: number;
+  range: number;
+  damage: number;
+  fireRate: number;
+  color: string;
+  secondaryColor: string;
+  aoeRadius?: number;  // For cannon
+  slowAmount?: number; // For slow tower (0-1)
+  slowDuration?: number; // seconds
+}
+
+export const TOWER_CONFIGS: Record<TowerType, TowerConfig> = {
+  archer: {
+    name: 'Archer',
+    cost: 30,
+    range: 120,
+    damage: 15,
+    fireRate: 1.5,
+    color: '#44aa44',
+    secondaryColor: '#228822',
+  },
+  cannon: {
+    name: 'Cannon',
+    cost: 80,
+    range: 80,
+    damage: 40,
+    fireRate: 0.5,
+    color: '#aa4444',
+    secondaryColor: '#882222',
+    aoeRadius: 50,
+  },
+  slow: {
+    name: 'Slow',
+    cost: 50,
+    range: 100,
+    damage: 5,
+    fireRate: 1,
+    color: '#4488cc',
+    secondaryColor: '#226699',
+    slowAmount: 0.5,
+    slowDuration: 2,
+  },
+};
+
+// Enemy types
+export type EnemyType = 'normal' | 'speed' | 'tank';
+
+export interface EnemyTypeConfig {
+  name: string;
+  hpMultiplier: number;
+  speedMultiplier: number;
+  rewardMultiplier: number;
+  color: string;
+  size: number;
+}
+
+export const ENEMY_CONFIGS: Record<EnemyType, EnemyTypeConfig> = {
+  normal: {
+    name: 'Normal',
+    hpMultiplier: 1,
+    speedMultiplier: 1,
+    rewardMultiplier: 1,
+    color: '#ff4444',
+    size: 20,
+  },
+  speed: {
+    name: 'Speed',
+    hpMultiplier: 0.5,
+    speedMultiplier: 1.8,
+    rewardMultiplier: 1.2,
+    color: '#ffaa00',
+    size: 16,
+  },
+  tank: {
+    name: 'Tank',
+    hpMultiplier: 3,
+    speedMultiplier: 0.5,
+    rewardMultiplier: 2,
+    color: '#8844aa',
+    size: 28,
+  },
+};
+
+export interface WaveEnemy {
+  type: EnemyType;
+  count: number;
+}
+
 export interface WaveConfig {
-  enemyCount: number;
-  enemyHp: number;
-  enemySpeed: number;
+  enemies: WaveEnemy[];
+  baseHp: number;
+  baseSpeed: number;
   spawnInterval: number;
-  reward: number;
+  baseReward: number;
 }
 
 export interface GameConfig {
@@ -22,16 +115,6 @@ export interface GameConfig {
   };
   tower: {
     size: number;
-    range: number;
-    fireRate: number;
-    damage: number;
-    cost: number;
-  };
-  enemy: {
-    size: number;
-    baseSpeed: number;
-    baseHp: number;
-    baseReward: number;
   };
   projectile: {
     size: number;
@@ -55,16 +138,6 @@ export const CONFIG: GameConfig = {
   },
   tower: {
     size: 30,
-    range: 100,
-    fireRate: 1,
-    damage: 10,
-    cost: 50,
-  },
-  enemy: {
-    size: 20,
-    baseSpeed: 50,
-    baseHp: 30,
-    baseReward: 10,
   },
   projectile: {
     size: 5,
@@ -75,10 +148,40 @@ export const CONFIG: GameConfig = {
     initialGold: 100,
   },
   waves: [
-    { enemyCount: 5, enemyHp: 30, enemySpeed: 50, spawnInterval: 2000, reward: 10 },
-    { enemyCount: 8, enemyHp: 40, enemySpeed: 55, spawnInterval: 1800, reward: 12 },
-    { enemyCount: 10, enemyHp: 50, enemySpeed: 60, spawnInterval: 1600, reward: 15 },
-    { enemyCount: 12, enemyHp: 70, enemySpeed: 65, spawnInterval: 1400, reward: 18 },
-    { enemyCount: 15, enemyHp: 100, enemySpeed: 70, spawnInterval: 1200, reward: 25 },
+    {
+      enemies: [{ type: 'normal', count: 5 }],
+      baseHp: 30,
+      baseSpeed: 50,
+      spawnInterval: 2000,
+      baseReward: 10,
+    },
+    {
+      enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }],
+      baseHp: 35,
+      baseSpeed: 52,
+      spawnInterval: 1800,
+      baseReward: 12,
+    },
+    {
+      enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }, { type: 'tank', count: 2 }],
+      baseHp: 40,
+      baseSpeed: 55,
+      spawnInterval: 1600,
+      baseReward: 15,
+    },
+    {
+      enemies: [{ type: 'normal', count: 6 }, { type: 'speed', count: 5 }, { type: 'tank', count: 3 }],
+      baseHp: 50,
+      baseSpeed: 58,
+      spawnInterval: 1400,
+      baseReward: 18,
+    },
+    {
+      enemies: [{ type: 'normal', count: 8 }, { type: 'speed', count: 6 }, { type: 'tank', count: 5 }],
+      baseHp: 60,
+      baseSpeed: 60,
+      spawnInterval: 1200,
+      baseReward: 22,
+    },
   ],
 };

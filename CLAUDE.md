@@ -45,20 +45,29 @@ tower-defense/
 - パス幅: 40px
 - パス色: 砂色 (#c2b280)
 
-### Tower
+### Tower Types (Phase 3)
+
+| Type | Cost | Range | Damage | Fire Rate | Special |
+|------|------|-------|--------|-----------|---------|
+| Archer | 30G | 120px | 15 | 1.5/s | 単体攻撃 |
+| Cannon | 80G | 80px | 40 | 0.5/s | 範囲攻撃 (50px) |
+| Slow | 50G | 100px | 5 | 1/s | 減速効果 (50%, 2秒) |
+
 - 配置: キャンバスクリックで配置（パス上は不可）
 - サイズ: 30x30 pixels
-- 色: 青 (#4488ff)
-- 射程: 100px (円形)
-- 攻撃速度: 1発/秒
-- ダメージ: 10
-- コスト: 50ゴールド
+- UI: 下部のボタンでタワータイプを選択
 
-### Enemy
+### Enemy Types (Phase 3)
+
+| Type | HP倍率 | 速度倍率 | 報酬倍率 | 色 | サイズ |
+|------|--------|----------|----------|-----|--------|
+| Normal | 1.0x | 1.0x | 1.0x | 赤 (#ff4444) | 20px |
+| Speed | 0.5x | 1.8x | 1.2x | オレンジ (#ffaa00) | 16px |
+| Tank | 3.0x | 0.5x | 2.0x | 紫 (#8844aa) | 28px |
+
 - スポーン: 左端から出現
-- サイズ: 20x20 pixels
-- 色: 赤 (#ff4444)
-- ステータスはウェーブごとに変化
+- 形状: Normal=四角, Speed=ダイヤモンド, Tank=円
+- ステータスはウェーブごとのベース値に倍率を適用
 
 ### Projectile
 - サイズ: 5px (円形)
@@ -70,17 +79,17 @@ tower-defense/
 - 初期ライフ: 10
 - 初期ゴールド: 100
 
-## Wave System (Phase 2)
+## Wave System (Phase 2 & 3)
 
-5ウェーブ制:
+5ウェーブ制（敵タイプ混合）:
 
-| Wave | 敵数 | HP | 速度 | 報酬 |
-|------|------|-----|------|------|
-| 1 | 5 | 30 | 50 | 10G |
-| 2 | 8 | 40 | 55 | 12G |
-| 3 | 10 | 50 | 60 | 15G |
-| 4 | 12 | 70 | 65 | 18G |
-| 5 | 15 | 100 | 70 | 25G |
+| Wave | 敵構成 | Base HP | Base Speed | Base Reward |
+|------|--------|---------|------------|-------------|
+| 1 | Normal×5 | 30 | 50 | 10G |
+| 2 | Normal×5, Speed×3 | 40 | 55 | 12G |
+| 3 | Normal×5, Speed×5, Tank×2 | 50 | 60 | 15G |
+| 4 | Normal×8, Speed×6, Tank×3 | 70 | 65 | 18G |
+| 5 | Normal×10, Speed×8, Tank×5 | 100 | 70 | 25G |
 
 ## Game States
 
@@ -95,6 +104,7 @@ tower-defense/
 - Wave: 現在のウェーブ / 総ウェーブ数
 - Lives: 残りライフ
 - Gold: 所持ゴールド
+- Tower Select: タワータイプ選択ボタン (Archer/Cannon/Slow)
 - Start/Pause Button: ウェーブ開始・一時停止
 
 ## Commands

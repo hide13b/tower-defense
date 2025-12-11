@@ -1,5 +1,5 @@
-import type { Position } from '../types';
-import { CONFIG } from '../types';
+import type { Position, TowerType } from '../types';
+import { CONFIG, TOWER_CONFIGS } from '../types';
 import { Enemy } from './Enemy';
 import { Projectile } from './Projectile';
 import { distance } from '../utils/math';
@@ -10,16 +10,24 @@ export class Tower {
   public readonly size: number;
   public readonly range: number;
   public readonly damage: number;
+  public readonly type: TowerType;
+  public readonly color: string;
+  public readonly secondaryColor: string;
   private fireRate: number;
   private fireCooldown: number = 0;
 
-  constructor(x: number, y: number) {
+  constructor(x: number, y: number, type: TowerType) {
+    const config = TOWER_CONFIGS[type];
+
     this.x = x;
     this.y = y;
+    this.type = type;
     this.size = CONFIG.tower.size;
-    this.range = CONFIG.tower.range;
-    this.damage = CONFIG.tower.damage;
-    this.fireRate = CONFIG.tower.fireRate;
+    this.range = config.range;
+    this.damage = config.damage;
+    this.fireRate = config.fireRate;
+    this.color = config.color;
+    this.secondaryColor = config.secondaryColor;
   }
 
   get position(): Position {
@@ -32,7 +40,7 @@ export class Tower {
     if (this.fireCooldown <= 0) {
       const target = this.findTarget(enemies);
       if (target) {
-        this.fire(target, projectiles);
+        this.fire(target, projectiles, enemies);
         this.fireCooldown = 1 / this.fireRate;
       }
     }
@@ -55,32 +63,63 @@ export class Tower {
     return closest;
   }
 
-  private fire(target: Enemy, projectiles: Projectile[]): void {
-    const projectile = new Projectile(this.x, this.y, target, this.damage);
+  private fire(target: Enemy, projectiles: Projectile[], enemies: Enemy[]): void {
+    const projectile = new Projectile(this.x, this.y, target, this.damage, this.type, enemies);
     projectiles.push(projectile);
   }
 
   render(ctx: CanvasRenderingContext2D): void {
     // Range indicator (subtle)
-    ctx.strokeStyle = 'rgba(68, 136, 255, 0.2)';
+    ctx.strokeStyle = this.color + '33';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Tower body
-    ctx.fillStyle = '#4488ff';
-    ctx.fillRect(
-      this.x - this.size / 2,
-      this.y - this.size / 2,
-      this.size,
-      this.size
-    );
+    // Tower base
+    ctx.fillStyle = this.color;
 
-    // Tower top
-    ctx.fillStyle = '#2266dd';
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size / 3, 0, Math.PI * 2);
-    ctx.fill();
+    if (this.type === 'cannon') {
+      // Cannon - circular base
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Barrel
+      ctx.fillStyle = this.secondaryColor;
+      ctx.fillRect(this.x - 4, this.y - this.size / 2 - 5, 8, 15);
+    } else if (this.type === 'slow') {
+      // Slow tower - hexagonal
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3 - Math.PI / 6;
+        const px = this.x + (this.size / 2) * Math.cos(angle);
+        const py = this.y + (this.size / 2) * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Crystal
+      ctx.fillStyle = '#aaddff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size / 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Archer - square base
+      ctx.fillRect(
+        this.x - this.size / 2,
+        this.y - this.size / 2,
+        this.size,
+        this.size
+      );
+      // Tower top
+      ctx.fillStyle = this.secondaryColor;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - this.size / 2 - 8);
+      ctx.lineTo(this.x + this.size / 3, this.y - this.size / 4);
+      ctx.lineTo(this.x - this.size / 3, this.y - this.size / 4);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 }

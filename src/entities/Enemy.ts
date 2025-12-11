@@ -1,10 +1,11 @@
-import type { Position } from '../types';
-import { CONFIG } from '../types';
+import type { Position, EnemyType } from '../types';
+import { CONFIG, ENEMY_CONFIGS } from '../types';
 
-export interface EnemyConfig {
-  hp: number;
-  speed: number;
-  reward: number;
+export interface EnemySpawnConfig {
+  type: EnemyType;
+  baseHp: number;
+  baseSpeed: number;
+  baseReward: number;
 }
 
 export class Enemy {
@@ -13,19 +14,31 @@ export class Enemy {
   public hp: number;
   public readonly maxHp: number;
   public readonly size: number;
-  public readonly speed: number;
+  public readonly baseSpeed: number;
+  public currentSpeed: number;
   public readonly reward: number;
+  public readonly type: EnemyType;
+  public readonly color: string;
   public active: boolean = true;
   public rewarded: boolean = false;
 
-  constructor(x: number, y: number, config?: EnemyConfig) {
+  // Slow effect
+  private slowAmount: number = 0;
+  private slowTimer: number = 0;
+
+  constructor(x: number, y: number, config: EnemySpawnConfig) {
+    const typeConfig = ENEMY_CONFIGS[config.type];
+
     this.x = x;
     this.y = y;
-    this.hp = config?.hp ?? CONFIG.enemy.baseHp;
+    this.type = config.type;
+    this.hp = Math.floor(config.baseHp * typeConfig.hpMultiplier);
     this.maxHp = this.hp;
-    this.size = CONFIG.enemy.size;
-    this.speed = config?.speed ?? CONFIG.enemy.baseSpeed;
-    this.reward = config?.reward ?? CONFIG.enemy.baseReward;
+    this.size = typeConfig.size;
+    this.baseSpeed = config.baseSpeed * typeConfig.speedMultiplier;
+    this.currentSpeed = this.baseSpeed;
+    this.reward = Math.floor(config.baseReward * typeConfig.rewardMultiplier);
+    this.color = typeConfig.color;
   }
 
   get position(): Position {
@@ -33,7 +46,25 @@ export class Enemy {
   }
 
   update(deltaTime: number): void {
-    this.x += this.speed * deltaTime;
+    // Update slow effect
+    if (this.slowTimer > 0) {
+      this.slowTimer -= deltaTime;
+      this.currentSpeed = this.baseSpeed * (1 - this.slowAmount);
+    } else {
+      this.currentSpeed = this.baseSpeed;
+      this.slowAmount = 0;
+    }
+
+    this.x += this.currentSpeed * deltaTime;
+  }
+
+  applySlow(amount: number, duration: number): void {
+    // Apply stronger slow if new one is stronger
+    if (amount > this.slowAmount) {
+      this.slowAmount = amount;
+    }
+    // Always refresh duration
+    this.slowTimer = duration;
   }
 
   takeDamage(damage: number): void {
@@ -49,16 +80,43 @@ export class Enemy {
 
   render(ctx: CanvasRenderingContext2D): void {
     // Enemy body
-    ctx.fillStyle = '#ff4444';
-    ctx.fillRect(
-      this.x - this.size / 2,
-      this.y - this.size / 2,
-      this.size,
-      this.size
-    );
+    ctx.fillStyle = this.color;
+
+    if (this.type === 'tank') {
+      // Tank is circular
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.type === 'speed') {
+      // Speed is diamond
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - this.size / 2);
+      ctx.lineTo(this.x + this.size / 2, this.y);
+      ctx.lineTo(this.x, this.y + this.size / 2);
+      ctx.lineTo(this.x - this.size / 2, this.y);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Normal is square
+      ctx.fillRect(
+        this.x - this.size / 2,
+        this.y - this.size / 2,
+        this.size,
+        this.size
+      );
+    }
+
+    // Slow indicator
+    if (this.slowTimer > 0) {
+      ctx.strokeStyle = '#88ccff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size / 2 + 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Health bar background
-    const barWidth = this.size;
+    const barWidth = this.size + 4;
     const barHeight = 4;
     const barY = this.y - this.size / 2 - 8;
 

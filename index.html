@@ -14,8 +14,24 @@
       </div>
       <canvas id="game-canvas"></canvas>
       <div id="ui-bottom">
+        <div id="tower-select">
+          <button class="tower-btn selected" data-tower="archer">
+            <span class="tower-icon archer"></span>
+            <span class="tower-name">Archer</span>
+            <span class="tower-cost">30G</span>
+          </button>
+          <button class="tower-btn" data-tower="cannon">
+            <span class="tower-icon cannon"></span>
+            <span class="tower-name">Cannon</span>
+            <span class="tower-cost">80G</span>
+          </button>
+          <button class="tower-btn" data-tower="slow">
+            <span class="tower-icon slow"></span>
+            <span class="tower-name">Slow</span>
+            <span class="tower-cost">50G</span>
+          </button>
+        </div>
         <button id="start-btn">Start Wave</button>
-        <span id="tower-cost">Tower Cost: 50G</span>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

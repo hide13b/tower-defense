@@ -1,10 +1,15 @@
-import { CONFIG } from '../types';
-import type { WaveConfig } from '../types';
+import { CONFIG, TOWER_CONFIGS } from '../types';
+import type { WaveConfig, TowerType, EnemyType } from '../types';
 import { Tower } from '../entities/Tower';
 import { Enemy } from '../entities/Enemy';
 import { Projectile } from '../entities/Projectile';
 
 type GameState = 'waiting' | 'playing' | 'paused' | 'gameover' | 'victory';
+
+interface SpawnQueue {
+  type: EnemyType;
+  remaining: number;
+}
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -20,14 +25,18 @@ export class Game {
 
   // Wave system
   private currentWave: number = 0;
-  private enemiesSpawned: number = 0;
-  private enemiesKilled: number = 0;
+  private spawnQueue: SpawnQueue[] = [];
+  private currentSpawnIndex: number = 0;
+
+  // Tower selection
+  private selectedTowerType: TowerType = 'archer';
 
   // UI Elements
   private waveElement: HTMLElement;
   private livesElement: HTMLElement;
   private goldElement: HTMLElement;
   private startButton: HTMLButtonElement;
+  private towerButtons: NodeListOf<HTMLButtonElement>;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -43,6 +52,7 @@ export class Game {
     this.livesElement = document.getElementById('lives')!;
     this.goldElement = document.getElementById('gold')!;
     this.startButton = document.getElementById('start-btn') as HTMLButtonElement;
+    this.towerButtons = document.querySelectorAll('.tower-btn') as NodeListOf<HTMLButtonElement>;
 
     this.setupEventListeners();
     this.updateUI();
@@ -51,6 +61,20 @@ export class Game {
   private setupEventListeners(): void {
     this.canvas.addEventListener('click', (e) => this.handleClick(e));
     this.startButton.addEventListener('click', () => this.handleStartButton());
+
+    this.towerButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.tower as TowerType;
+        this.selectTower(type);
+      });
+    });
+  }
+
+  private selectTower(type: TowerType): void {
+    this.selectedTowerType = type;
+    this.towerButtons.forEach((btn) => {
+      btn.classList.toggle('selected', btn.dataset.tower === type);
+    });
   }
 
   private handleStartButton(): void {
@@ -67,9 +91,17 @@ export class Game {
 
   private startWave(): void {
     this.state = 'playing';
-    this.enemiesSpawned = 0;
     this.spawnTimer = 0;
     this.startButton.textContent = 'Pause';
+
+    // Build spawn queue from wave config
+    const waveConfig = this.getCurrentWaveConfig();
+    this.spawnQueue = waveConfig.enemies.map((e) => ({
+      type: e.type,
+      remaining: e.count,
+    }));
+    this.currentSpawnIndex = 0;
+
     this.updateUI();
   }
 
@@ -88,8 +120,10 @@ export class Game {
       return; // Can't place tower on path
     }
 
+    const towerConfig = TOWER_CONFIGS[this.selectedTowerType];
+
     // Check if we have enough gold
-    if (this.gold < CONFIG.tower.cost) {
+    if (this.gold < towerConfig.cost) {
       return;
     }
 
@@ -103,8 +137,8 @@ export class Game {
       }
     }
 
-    this.gold -= CONFIG.tower.cost;
-    this.towers.push(new Tower(x, y));
+    this.gold -= towerConfig.cost;
+    this.towers.push(new Tower(x, y, this.selectedTowerType));
     this.updateUI();
   }
 
@@ -120,27 +154,41 @@ export class Game {
   }
 
   private spawnEnemy(): void {
+    if (this.currentSpawnIndex >= this.spawnQueue.length) return;
+
+    const current = this.spawnQueue[this.currentSpawnIndex];
+    if (current.remaining <= 0) {
+      this.currentSpawnIndex++;
+      if (this.currentSpawnIndex < this.spawnQueue.length) {
+        this.spawnEnemy();
+      }
+      return;
+    }
+
     const waveConfig = this.getCurrentWaveConfig();
     const enemy = new Enemy(0, CONFIG.path.y, {
-      hp: waveConfig.enemyHp,
-      speed: waveConfig.enemySpeed,
-      reward: waveConfig.reward,
+      type: current.type,
+      baseHp: waveConfig.baseHp,
+      baseSpeed: waveConfig.baseSpeed,
+      baseReward: waveConfig.baseReward,
     });
     this.enemies.push(enemy);
-    this.enemiesSpawned++;
+    current.remaining--;
+  }
+
+  private getTotalEnemiesRemaining(): number {
+    return this.spawnQueue.reduce((sum, q) => sum + q.remaining, 0);
   }
 
   private checkWaveComplete(): boolean {
-    const waveConfig = this.getCurrentWaveConfig();
     return (
-      this.enemiesSpawned >= waveConfig.enemyCount &&
+      this.getTotalEnemiesRemaining() === 0 &&
       this.enemies.every((e) => !e.active)
     );
   }
 
   private nextWave(): void {
     this.currentWave++;
-    this.enemiesKilled = 0;
 
     if (this.currentWave >= CONFIG.waves.length) {
       this.victory();
@@ -159,7 +207,7 @@ export class Game {
     const waveConfig = this.getCurrentWaveConfig();
 
     // Spawn enemies
-    if (this.enemiesSpawned < waveConfig.enemyCount) {
+    if (this.getTotalEnemiesRemaining() > 0) {
       this.spawnTimer += deltaTime * 1000;
       if (this.spawnTimer >= waveConfig.spawnInterval) {
         this.spawnEnemy();
@@ -200,7 +248,6 @@ export class Game {
       if (!enemy.active && enemy.hp <= 0 && !enemy.rewarded) {
         enemy.rewarded = true;
         this.gold += enemy.reward;
-        this.enemiesKilled++;
         this.updateUI();
       }
     }
@@ -274,23 +321,28 @@ export class Game {
       ctx.fillText(
         `Wave ${this.currentWave + 1}`,
         CONFIG.canvas.width / 2,
-        CONFIG.canvas.height / 2 - 40
+        CONFIG.canvas.height / 2 - 60
       );
 
       ctx.fillStyle = '#fff';
-      ctx.font = '20px sans-serif';
-      ctx.fillText(
-        `Enemies: ${waveConfig.enemyCount} | HP: ${waveConfig.enemyHp}`,
-        CONFIG.canvas.width / 2,
-        CONFIG.canvas.height / 2
-      );
+      ctx.font = '18px sans-serif';
+
+      const enemyInfo = waveConfig.enemies
+        .map((e) => `${e.type}: ${e.count}`)
+        .join(' | ');
+      ctx.fillText(enemyInfo, CONFIG.canvas.width / 2, CONFIG.canvas.height / 2 - 20);
 
       ctx.fillStyle = '#aaa';
       ctx.font = '16px sans-serif';
       ctx.fillText(
-        'Place towers and click "Start Wave"',
+        'Select tower type and click to place',
         CONFIG.canvas.width / 2,
-        CONFIG.canvas.height / 2 + 40
+        CONFIG.canvas.height / 2 + 20
+      );
+      ctx.fillText(
+        'Then click "Start Wave"',
+        CONFIG.canvas.width / 2,
+        CONFIG.canvas.height / 2 + 45
       );
     }
 
@@ -367,8 +419,8 @@ export class Game {
     this.lives = CONFIG.player.initialLives;
     this.gold = CONFIG.player.initialGold;
     this.currentWave = 0;
-    this.enemiesSpawned = 0;
-    this.enemiesKilled = 0;
+    this.spawnQueue = [];
+    this.currentSpawnIndex = 0;
     this.spawnTimer = 0;
     this.state = 'waiting';
     this.startButton.disabled = false;
