@@ -1,8 +1,9 @@
 import { CONFIG, TOWER_CONFIGS } from '../types';
-import type { WaveConfig, TowerType, EnemyType } from '../types';
+import type { WaveConfig, TowerType, EnemyType, PathPoint } from '../types';
 import { Tower } from '../entities/Tower';
 import { Enemy } from '../entities/Enemy';
 import { Projectile } from '../entities/Projectile';
+import { distance } from '../utils/math';
 
 type GameState = 'waiting' | 'playing' | 'paused' | 'gameover' | 'victory';
 
@@ -30,6 +31,10 @@ export class Game {
 
   // Tower selection
   private selectedTowerType: TowerType = 'archer';
+  private selectedTower: Tower | null = null;
+
+  // Path
+  private path: PathPoint[];
 
   // UI Elements
   private waveElement: HTMLElement;
@@ -37,6 +42,9 @@ export class Game {
   private goldElement: HTMLElement;
   private startButton: HTMLButtonElement;
   private towerButtons: NodeListOf<HTMLButtonElement>;
+  private upgradeButton: HTMLButtonElement;
+  private sellButton: HTMLButtonElement;
+  private towerInfoPanel: HTMLElement;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -47,12 +55,16 @@ export class Game {
 
     this.lives = CONFIG.player.initialLives;
     this.gold = CONFIG.player.initialGold;
+    this.path = CONFIG.map.path;
 
     this.waveElement = document.getElementById('wave')!;
     this.livesElement = document.getElementById('lives')!;
     this.goldElement = document.getElementById('gold')!;
     this.startButton = document.getElementById('start-btn') as HTMLButtonElement;
     this.towerButtons = document.querySelectorAll('.tower-btn') as NodeListOf<HTMLButtonElement>;
+    this.upgradeButton = document.getElementById('upgrade-btn') as HTMLButtonElement;
+    this.sellButton = document.getElementById('sell-btn') as HTMLButtonElement;
+    this.towerInfoPanel = document.getElementById('tower-info') as HTMLElement;
 
     this.setupEventListeners();
     this.updateUI();
@@ -65,16 +77,21 @@ export class Game {
     this.towerButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const type = btn.dataset.tower as TowerType;
-        this.selectTower(type);
+        this.selectTowerType(type);
       });
     });
+
+    this.upgradeButton?.addEventListener('click', () => this.upgradeTower());
+    this.sellButton?.addEventListener('click', () => this.sellTower());
   }
 
-  private selectTower(type: TowerType): void {
+  private selectTowerType(type: TowerType): void {
     this.selectedTowerType = type;
+    this.selectedTower = null;
     this.towerButtons.forEach((btn) => {
       btn.classList.toggle('selected', btn.dataset.tower === type);
     });
+    this.updateTowerInfoPanel();
   }
 
   private handleStartButton(): void {
@@ -112,11 +129,21 @@ export class Game {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Check if click is on the path
-    const pathTop = CONFIG.path.y - CONFIG.path.width / 2;
-    const pathBottom = CONFIG.path.y + CONFIG.path.width / 2;
+    // Check if clicked on existing tower
+    for (const tower of this.towers) {
+      const dist = distance({ x, y }, tower.position);
+      if (dist <= tower.size / 2 + 5) {
+        this.selectTower(tower);
+        return;
+      }
+    }
 
-    if (y >= pathTop && y <= pathBottom) {
+    // Deselect tower if clicking elsewhere
+    this.selectedTower = null;
+    this.updateTowerInfoPanel();
+
+    // Check if click is on the path
+    if (this.isOnPath(x, y)) {
       return; // Can't place tower on path
     }
 
@@ -142,11 +169,108 @@ export class Game {
     this.updateUI();
   }
 
+  private isOnPath(x: number, y: number): boolean {
+    const pathWidth = CONFIG.map.pathWidth;
+    const halfWidth = pathWidth / 2;
+
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const start = this.path[i];
+      const end = this.path[i + 1];
+
+      // Calculate distance from point to line segment
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+
+      if (length === 0) continue;
+
+      // Project point onto line
+      const t = Math.max(0, Math.min(1, ((x - start.x) * dx + (y - start.y) * dy) / (length * length)));
+      const projX = start.x + t * dx;
+      const projY = start.y + t * dy;
+
+      const distToLine = Math.sqrt((x - projX) * (x - projX) + (y - projY) * (y - projY));
+
+      if (distToLine <= halfWidth + CONFIG.tower.size / 2) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private selectTower(tower: Tower): void {
+    this.selectedTower = tower;
+    this.towerButtons.forEach((btn) => btn.classList.remove('selected'));
+    this.updateTowerInfoPanel();
+  }
+
+  private updateTowerInfoPanel(): void {
+    if (!this.towerInfoPanel) return;
+
+    if (this.selectedTower) {
+      const tower = this.selectedTower;
+      const config = TOWER_CONFIGS[tower.type];
+
+      this.towerInfoPanel.style.display = 'block';
+      this.towerInfoPanel.innerHTML = `
+        <div class="tower-info-header">${config.name} Lv.${tower.level}</div>
+        <div class="tower-info-stats">
+          <div>Damage: ${tower.damage}</div>
+          <div>Range: ${tower.range}</div>
+          <div>Sell: ${tower.sellValue}G</div>
+        </div>
+      `;
+
+      if (this.upgradeButton) {
+        if (tower.canUpgrade) {
+          this.upgradeButton.style.display = 'block';
+          this.upgradeButton.textContent = `Upgrade (${tower.upgradeCost}G)`;
+          this.upgradeButton.disabled = this.gold < tower.upgradeCost;
+        } else {
+          this.upgradeButton.style.display = 'none';
+        }
+      }
+
+      if (this.sellButton) {
+        this.sellButton.style.display = 'block';
+        this.sellButton.textContent = `Sell (${tower.sellValue}G)`;
+      }
+    } else {
+      this.towerInfoPanel.style.display = 'none';
+      if (this.upgradeButton) this.upgradeButton.style.display = 'none';
+      if (this.sellButton) this.sellButton.style.display = 'none';
+    }
+  }
+
+  private upgradeTower(): void {
+    if (!this.selectedTower || !this.selectedTower.canUpgrade) return;
+
+    const cost = this.selectedTower.upgradeCost;
+    if (this.gold < cost) return;
+
+    this.gold -= cost;
+    this.selectedTower.upgrade();
+    this.updateUI();
+    this.updateTowerInfoPanel();
+  }
+
+  private sellTower(): void {
+    if (!this.selectedTower) return;
+
+    this.gold += this.selectedTower.sellValue;
+    this.towers = this.towers.filter((t) => t !== this.selectedTower);
+    this.selectedTower = null;
+    this.updateUI();
+    this.updateTowerInfoPanel();
+  }
+
   private updateUI(): void {
     const totalWaves = CONFIG.waves.length;
     this.waveElement.textContent = `Wave: ${this.currentWave + 1}/${totalWaves}`;
     this.livesElement.textContent = `Lives: ${this.lives}`;
     this.goldElement.textContent = `Gold: ${this.gold}`;
+    this.updateTowerInfoPanel();
   }
 
   private getCurrentWaveConfig(): WaveConfig {
@@ -166,7 +290,7 @@ export class Game {
     }
 
     const waveConfig = this.getCurrentWaveConfig();
-    const enemy = new Enemy(0, CONFIG.path.y, {
+    const enemy = new Enemy(this.path, {
       type: current.type,
       baseHp: waveConfig.baseHp,
       baseSpeed: waveConfig.baseSpeed,
@@ -266,33 +390,15 @@ export class Game {
     const ctx = this.ctx;
 
     // Clear canvas
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#2a3a2a';
     ctx.fillRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);
 
     // Draw path
-    ctx.fillStyle = '#c2b280';
-    ctx.fillRect(
-      0,
-      CONFIG.path.y - CONFIG.path.width / 2,
-      CONFIG.canvas.width,
-      CONFIG.path.width
-    );
-
-    // Draw start and end markers
-    ctx.fillStyle = '#44ff44';
-    ctx.fillRect(0, CONFIG.path.y - CONFIG.path.width / 2, 10, CONFIG.path.width);
-
-    ctx.fillStyle = '#ff4444';
-    ctx.fillRect(
-      CONFIG.canvas.width - 10,
-      CONFIG.path.y - CONFIG.path.width / 2,
-      10,
-      CONFIG.path.width
-    );
+    this.renderPath();
 
     // Draw towers
     for (const tower of this.towers) {
-      tower.render(ctx);
+      tower.render(ctx, tower === this.selectedTower);
     }
 
     // Draw enemies
@@ -356,6 +462,48 @@ export class Game {
       ctx.textAlign = 'center';
       ctx.fillText('PAUSED', CONFIG.canvas.width / 2, CONFIG.canvas.height / 2);
     }
+  }
+
+  private renderPath(): void {
+    const ctx = this.ctx;
+    const pathWidth = CONFIG.map.pathWidth;
+
+    // Draw path segments
+    ctx.strokeStyle = '#c2b280';
+    ctx.lineWidth = pathWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(this.path[0].x, this.path[0].y);
+    for (let i = 1; i < this.path.length; i++) {
+      ctx.lineTo(this.path[i].x, this.path[i].y);
+    }
+    ctx.stroke();
+
+    // Draw path border
+    ctx.strokeStyle = '#8a7a50';
+    ctx.lineWidth = pathWidth + 4;
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.beginPath();
+    ctx.moveTo(this.path[0].x, this.path[0].y);
+    for (let i = 1; i < this.path.length; i++) {
+      ctx.lineTo(this.path[i].x, this.path[i].y);
+    }
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Draw start marker
+    ctx.fillStyle = '#44ff44';
+    ctx.beginPath();
+    ctx.arc(this.path[0].x, this.path[0].y, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw end marker
+    ctx.fillStyle = '#ff4444';
+    ctx.beginPath();
+    ctx.arc(this.path[this.path.length - 1].x, this.path[this.path.length - 1].y, 15, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   private gameOver(): void {
@@ -423,6 +571,7 @@ export class Game {
     this.currentSpawnIndex = 0;
     this.spawnTimer = 0;
     this.state = 'waiting';
+    this.selectedTower = null;
     this.startButton.disabled = false;
     this.startButton.textContent = 'Start Wave';
     this.updateUI();

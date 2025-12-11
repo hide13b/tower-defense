@@ -1,0 +1,39 @@
+{
+  "waves": [
+    {
+      "enemies": [{ "type": "normal", "count": 5 }],
+      "baseHp": 30,
+      "baseSpeed": 50,
+      "spawnInterval": 2000,
+      "baseReward": 10
+    },
+    {
+      "enemies": [{ "type": "normal", "count": 5 }, { "type": "speed", "count": 3 }],
+      "baseHp": 35,
+      "baseSpeed": 52,
+      "spawnInterval": 1800,
+      "baseReward": 12
+    },
+    {
+      "enemies": [{ "type": "normal", "count": 5 }, { "type": "speed", "count": 3 }, { "type": "tank", "count": 2 }],
+      "baseHp": 40,
+      "baseSpeed": 55,
+      "spawnInterval": 1600,
+      "baseReward": 15
+    },
+    {
+      "enemies": [{ "type": "normal", "count": 6 }, { "type": "speed", "count": 5 }, { "type": "tank", "count": 3 }],
+      "baseHp": 50,
+      "baseSpeed": 58,
+      "spawnInterval": 1400,
+      "baseReward": 18
+    },
+    {
+      "enemies": [{ "type": "normal", "count": 8 }, { "type": "speed", "count": 6 }, { "type": "tank", "count": 5 }],
+      "baseHp": 60,
+      "baseSpeed": 60,
+      "spawnInterval": 1200,
+      "baseReward": 22
+    }
+  ]
+}

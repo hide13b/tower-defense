@@ -6,49 +6,60 @@ export interface Position {
 // Tower types
 export type TowerType = 'archer' | 'cannon' | 'slow';
 
+export interface TowerLevelStats {
+  damage: number;
+  range: number;
+  fireRate: number;
+  aoeRadius?: number;
+  slowAmount?: number;
+  slowDuration?: number;
+}
+
 export interface TowerConfig {
   name: string;
   cost: number;
-  range: number;
-  damage: number;
-  fireRate: number;
+  upgradeCosts: [number, number]; // Level 2 and 3 costs
+  levels: [TowerLevelStats, TowerLevelStats, TowerLevelStats]; // Stats for each level
   color: string;
   secondaryColor: string;
-  aoeRadius?: number;  // For cannon
-  slowAmount?: number; // For slow tower (0-1)
-  slowDuration?: number; // seconds
 }
 
 export const TOWER_CONFIGS: Record<TowerType, TowerConfig> = {
   archer: {
     name: 'Archer',
     cost: 30,
-    range: 120,
-    damage: 15,
-    fireRate: 1.5,
+    upgradeCosts: [40, 60],
+    levels: [
+      { damage: 15, range: 120, fireRate: 1.5 },
+      { damage: 25, range: 140, fireRate: 2.0 },
+      { damage: 40, range: 160, fireRate: 2.5 },
+    ],
     color: '#44aa44',
     secondaryColor: '#228822',
   },
   cannon: {
     name: 'Cannon',
     cost: 80,
-    range: 80,
-    damage: 40,
-    fireRate: 0.5,
+    upgradeCosts: [60, 100],
+    levels: [
+      { damage: 40, range: 80, fireRate: 0.5, aoeRadius: 50 },
+      { damage: 60, range: 90, fireRate: 0.6, aoeRadius: 60 },
+      { damage: 90, range: 100, fireRate: 0.75, aoeRadius: 75 },
+    ],
     color: '#aa4444',
     secondaryColor: '#882222',
-    aoeRadius: 50,
   },
   slow: {
     name: 'Slow',
     cost: 50,
-    range: 100,
-    damage: 5,
-    fireRate: 1,
+    upgradeCosts: [50, 80],
+    levels: [
+      { damage: 5, range: 100, fireRate: 1, slowAmount: 0.5, slowDuration: 2 },
+      { damage: 10, range: 120, fireRate: 1.2, slowAmount: 0.6, slowDuration: 2.5 },
+      { damage: 15, range: 140, fireRate: 1.5, slowAmount: 0.7, slowDuration: 3 },
+    ],
     color: '#4488cc',
     secondaryColor: '#226699',
-    slowAmount: 0.5,
-    slowDuration: 2,
   },
 };
 
@@ -91,6 +102,37 @@ export const ENEMY_CONFIGS: Record<EnemyType, EnemyTypeConfig> = {
   },
 };
 
+// Path system
+export interface PathPoint {
+  x: number;
+  y: number;
+}
+
+export interface MapConfig {
+  name: string;
+  path: PathPoint[];
+  pathWidth: number;
+}
+
+// Default winding path
+export const DEFAULT_MAP: MapConfig = {
+  name: 'Winding Path',
+  path: [
+    { x: 0, y: 100 },
+    { x: 200, y: 100 },
+    { x: 200, y: 300 },
+    { x: 400, y: 300 },
+    { x: 400, y: 150 },
+    { x: 600, y: 150 },
+    { x: 600, y: 450 },
+    { x: 300, y: 450 },
+    { x: 300, y: 550 },
+    { x: 800, y: 550 },
+  ],
+  pathWidth: 40,
+};
+
+// Wave configuration (JSON-compatible)
 export interface WaveEnemy {
   type: EnemyType;
   count: number;
@@ -104,17 +146,53 @@ export interface WaveConfig {
   baseReward: number;
 }
 
+// Default waves (can be loaded from JSON)
+export const DEFAULT_WAVES: WaveConfig[] = [
+  {
+    enemies: [{ type: 'normal', count: 5 }],
+    baseHp: 30,
+    baseSpeed: 50,
+    spawnInterval: 2000,
+    baseReward: 10,
+  },
+  {
+    enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }],
+    baseHp: 35,
+    baseSpeed: 52,
+    spawnInterval: 1800,
+    baseReward: 12,
+  },
+  {
+    enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }, { type: 'tank', count: 2 }],
+    baseHp: 40,
+    baseSpeed: 55,
+    spawnInterval: 1600,
+    baseReward: 15,
+  },
+  {
+    enemies: [{ type: 'normal', count: 6 }, { type: 'speed', count: 5 }, { type: 'tank', count: 3 }],
+    baseHp: 50,
+    baseSpeed: 58,
+    spawnInterval: 1400,
+    baseReward: 18,
+  },
+  {
+    enemies: [{ type: 'normal', count: 8 }, { type: 'speed', count: 6 }, { type: 'tank', count: 5 }],
+    baseHp: 60,
+    baseSpeed: 60,
+    spawnInterval: 1200,
+    baseReward: 22,
+  },
+];
+
 export interface GameConfig {
   canvas: {
     width: number;
     height: number;
   };
-  path: {
-    y: number;
-    width: number;
-  };
   tower: {
     size: number;
+    sellRefundRate: number; // 0.5 = 50% refund
   };
   projectile: {
     size: number;
@@ -124,6 +202,7 @@ export interface GameConfig {
     initialLives: number;
     initialGold: number;
   };
+  map: MapConfig;
   waves: WaveConfig[];
 }
 
@@ -132,12 +211,9 @@ export const CONFIG: GameConfig = {
     width: 800,
     height: 600,
   },
-  path: {
-    y: 300,
-    width: 40,
-  },
   tower: {
     size: 30,
+    sellRefundRate: 0.5,
   },
   projectile: {
     size: 5,
@@ -147,41 +223,6 @@ export const CONFIG: GameConfig = {
     initialLives: 10,
     initialGold: 100,
   },
-  waves: [
-    {
-      enemies: [{ type: 'normal', count: 5 }],
-      baseHp: 30,
-      baseSpeed: 50,
-      spawnInterval: 2000,
-      baseReward: 10,
-    },
-    {
-      enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }],
-      baseHp: 35,
-      baseSpeed: 52,
-      spawnInterval: 1800,
-      baseReward: 12,
-    },
-    {
-      enemies: [{ type: 'normal', count: 5 }, { type: 'speed', count: 3 }, { type: 'tank', count: 2 }],
-      baseHp: 40,
-      baseSpeed: 55,
-      spawnInterval: 1600,
-      baseReward: 15,
-    },
-    {
-      enemies: [{ type: 'normal', count: 6 }, { type: 'speed', count: 5 }, { type: 'tank', count: 3 }],
-      baseHp: 50,
-      baseSpeed: 58,
-      spawnInterval: 1400,
-      baseReward: 18,
-    },
-    {
-      enemies: [{ type: 'normal', count: 8 }, { type: 'speed', count: 6 }, { type: 'tank', count: 5 }],
-      baseHp: 60,
-      baseSpeed: 60,
-      spawnInterval: 1200,
-      baseReward: 22,
-    },
-  ],
+  map: DEFAULT_MAP,
+  waves: DEFAULT_WAVES,
 };

@@ -1,5 +1,5 @@
 import type { Position, TowerType } from '../types';
-import { CONFIG, TOWER_CONFIGS } from '../types';
+import { CONFIG } from '../types';
 import { Enemy } from './Enemy';
 import { direction, distance } from '../utils/math';
 
@@ -15,14 +15,30 @@ export class Projectile {
   private dirX: number = 0;
   private dirY: number = 0;
   private enemies: Enemy[];
+  private aoeRadius?: number;
+  private slowAmount?: number;
+  private slowDuration?: number;
 
-  constructor(x: number, y: number, target: Enemy, damage: number, towerType: TowerType, enemies: Enemy[]) {
+  constructor(
+    x: number,
+    y: number,
+    target: Enemy,
+    damage: number,
+    towerType: TowerType,
+    enemies: Enemy[],
+    aoeRadius?: number,
+    slowAmount?: number,
+    slowDuration?: number
+  ) {
     this.x = x;
     this.y = y;
     this.target = target;
     this.damage = damage;
     this.towerType = towerType;
     this.enemies = enemies;
+    this.aoeRadius = aoeRadius;
+    this.slowAmount = slowAmount;
+    this.slowDuration = slowDuration;
     this.size = towerType === 'cannon' ? 8 : CONFIG.projectile.size;
     this.speed = towerType === 'cannon' ? 200 : CONFIG.projectile.speed;
     this.updateDirection();
@@ -63,21 +79,19 @@ export class Projectile {
   }
 
   private onHit(): void {
-    const config = TOWER_CONFIGS[this.towerType];
-
-    if (this.towerType === 'cannon' && config.aoeRadius) {
+    if (this.towerType === 'cannon' && this.aoeRadius) {
       // AOE damage
       for (const enemy of this.enemies) {
         if (!enemy.active) continue;
         const dist = distance(this.position, enemy.position);
-        if (dist <= config.aoeRadius) {
+        if (dist <= this.aoeRadius) {
           enemy.takeDamage(this.damage);
         }
       }
-    } else if (this.towerType === 'slow' && config.slowAmount && config.slowDuration) {
+    } else if (this.towerType === 'slow' && this.slowAmount && this.slowDuration) {
       // Apply slow and damage
       this.target.takeDamage(this.damage);
-      this.target.applySlow(config.slowAmount, config.slowDuration);
+      this.target.applySlow(this.slowAmount, this.slowDuration);
     } else {
       // Normal damage
       this.target.takeDamage(this.damage);

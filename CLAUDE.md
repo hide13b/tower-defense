@@ -40,18 +40,27 @@ tower-defense/
 - Size: 800x600 pixels
 - Background: ダークグレー (#333)
 
-### Path
-- 直線パス: 左端 (0, 300) → 右端 (800, 300)
+### Path (Phase 4)
+- 曲がりくねったパス（10ポイント）
+- スタート: 緑マーカー (0, 100)
+- ゴール: 赤マーカー (800, 550)
 - パス幅: 40px
 - パス色: 砂色 (#c2b280)
 
-### Tower Types (Phase 3)
+### Tower Types (Phase 3 & 4)
 
-| Type | Cost | Range | Damage | Fire Rate | Special |
-|------|------|-------|--------|-----------|---------|
-| Archer | 30G | 120px | 15 | 1.5/s | 単体攻撃 |
-| Cannon | 80G | 80px | 40 | 0.5/s | 範囲攻撃 (50px) |
-| Slow | 50G | 100px | 5 | 1/s | 減速効果 (50%, 2秒) |
+| Type | Cost | Lv.1 Damage | Lv.2 Damage | Lv.3 Damage | Special |
+|------|------|-------------|-------------|-------------|---------|
+| Archer | 30G | 15 | 25 | 40 | 単体攻撃 |
+| Cannon | 80G | 40 | 60 | 90 | 範囲攻撃 |
+| Slow | 50G | 5 | 10 | 15 | 減速効果 |
+
+**アップグレードシステム (Phase 4)**
+- 3段階レベルアップ可能
+- アップグレードコスト: Archer (40G/60G), Cannon (60G/100G), Slow (50G/80G)
+- レベルアップでDamage, Range, FireRate向上
+- タワークリックで選択 → Upgrade/Sellボタン表示
+- 売却: 投資額の50%返金
 
 - 配置: キャンバスクリックで配置（パス上は不可）
 - サイズ: 30x30 pixels
@@ -105,7 +114,28 @@ tower-defense/
 - Lives: 残りライフ
 - Gold: 所持ゴールド
 - Tower Select: タワータイプ選択ボタン (Archer/Cannon/Slow)
+- Tower Info Panel: 選択タワーの情報 (Level, Damage, Range, Sell価格)
+- Upgrade Button: タワーアップグレード
+- Sell Button: タワー売却
 - Start/Pause Button: ウェーブ開始・一時停止
+
+## Wave Configuration (Phase 4)
+
+ウェーブ設定は `public/waves.json` で管理可能。
+JSONフォーマット:
+```json
+{
+  "waves": [
+    {
+      "enemies": [{ "type": "normal", "count": 5 }],
+      "baseHp": 30,
+      "baseSpeed": 50,
+      "spawnInterval": 2000,
+      "baseReward": 10
+    }
+  ]
+}
+```
 
 ## Commands
 

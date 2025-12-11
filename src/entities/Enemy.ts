@@ -1,5 +1,5 @@
-import type { Position, EnemyType } from '../types';
-import { CONFIG, ENEMY_CONFIGS } from '../types';
+import type { Position, EnemyType, PathPoint } from '../types';
+import { ENEMY_CONFIGS } from '../types';
 
 export interface EnemySpawnConfig {
   type: EnemyType;
@@ -26,11 +26,17 @@ export class Enemy {
   private slowAmount: number = 0;
   private slowTimer: number = 0;
 
-  constructor(x: number, y: number, config: EnemySpawnConfig) {
+  // Path following
+  private path: PathPoint[];
+  private currentPathIndex: number = 0;
+  private distanceAlongSegment: number = 0;
+
+  constructor(path: PathPoint[], config: EnemySpawnConfig) {
     const typeConfig = ENEMY_CONFIGS[config.type];
 
-    this.x = x;
-    this.y = y;
+    this.path = path;
+    this.x = path[0].x;
+    this.y = path[0].y;
     this.type = config.type;
     this.hp = Math.floor(config.baseHp * typeConfig.hpMultiplier);
     this.maxHp = this.hp;
@@ -45,6 +51,15 @@ export class Enemy {
     return { x: this.x, y: this.y };
   }
 
+  private getSegmentLength(): number {
+    if (this.currentPathIndex >= this.path.length - 1) return 0;
+    const start = this.path[this.currentPathIndex];
+    const end = this.path[this.currentPathIndex + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
   update(deltaTime: number): void {
     // Update slow effect
     if (this.slowTimer > 0) {
@@ -55,7 +70,63 @@ export class Enemy {
       this.slowAmount = 0;
     }
 
-    this.x += this.currentSpeed * deltaTime;
+    // Move along path
+    const moveDistance = this.currentSpeed * deltaTime;
+    this.moveAlongPath(moveDistance);
+  }
+
+  private moveAlongPath(distance: number): void {
+    let remainingDistance = distance;
+
+    while (remainingDistance > 0 && this.currentPathIndex < this.path.length - 1) {
+      const segmentLength = this.getSegmentLength();
+      const remainingInSegment = segmentLength - this.distanceAlongSegment;
+
+      if (remainingDistance >= remainingInSegment) {
+        // Move to next segment
+        remainingDistance -= remainingInSegment;
+        this.currentPathIndex++;
+        this.distanceAlongSegment = 0;
+
+        if (this.currentPathIndex >= this.path.length - 1) {
+          // Reached the end
+          const lastPoint = this.path[this.path.length - 1];
+          this.x = lastPoint.x;
+          this.y = lastPoint.y;
+          return;
+        }
+      } else {
+        // Move within current segment
+        this.distanceAlongSegment += remainingDistance;
+        remainingDistance = 0;
+      }
+    }
+
+    // Update position based on current segment
+    this.updatePosition();
+  }
+
+  private updatePosition(): void {
+    if (this.currentPathIndex >= this.path.length - 1) {
+      const lastPoint = this.path[this.path.length - 1];
+      this.x = lastPoint.x;
+      this.y = lastPoint.y;
+      return;
+    }
+
+    const start = this.path[this.currentPathIndex];
+    const end = this.path[this.currentPathIndex + 1];
+    const segmentLength = this.getSegmentLength();
+
+    if (segmentLength === 0) {
+      this.x = start.x;
+      this.y = start.y;
+      return;
+    }
+
+    const t = this.distanceAlongSegment / segmentLength;
+    this.x = start.x + (end.x - start.x) * t;
+    this.y = start.y + (end.y - start.y) * t;
   }
 
   applySlow(amount: number, duration: number): void {
@@ -75,7 +146,7 @@ export class Enemy {
   }
 
   hasReachedGoal(): boolean {
-    return this.x >= CONFIG.canvas.width;
+    return this.currentPathIndex >= this.path.length - 1;
   }
 
   render(ctx: CanvasRenderingContext2D): void {
