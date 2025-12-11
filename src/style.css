@@ -1,0 +1,78 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #1a1a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#game-canvas {
+  border: 2px solid #444;
+  cursor: crosshair;
+}
+
+#ui-top {
+  display: flex;
+  gap: 30px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+#wave {
+  color: #88aaff;
+}
+
+#lives {
+  color: #ff6666;
+}
+
+#gold {
+  color: #ffcc00;
+}
+
+#ui-bottom {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+#start-btn {
+  padding: 10px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  background: #4488ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#start-btn:hover {
+  background: #2266dd;
+}
+
+#start-btn:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+#tower-cost {
+  color: #aaa;
+  font-size: 14px;
+}
