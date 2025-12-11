@@ -1,9 +1,12 @@
 import { CONFIG, TOWER_CONFIGS } from '../types';
 import type { WaveConfig, TowerType, EnemyType, PathPoint } from '../types';
+import type { ProjectileCallbacks } from '../entities/Projectile';
 import { Tower } from '../entities/Tower';
 import { Enemy } from '../entities/Enemy';
 import { Projectile } from '../entities/Projectile';
 import { distance } from '../utils/math';
+import { soundManager } from '../systems/SoundManager';
+import { visualEffects } from '../systems/VisualEffects';
 
 type GameState = 'waiting' | 'playing' | 'paused' | 'gameover' | 'victory';
 
@@ -46,6 +49,9 @@ export class Game {
   private sellButton: HTMLButtonElement;
   private towerInfoPanel: HTMLElement;
 
+  // Projectile callbacks for effects
+  private projectileCallbacks: ProjectileCallbacks;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
@@ -65,6 +71,22 @@ export class Game {
     this.upgradeButton = document.getElementById('upgrade-btn') as HTMLButtonElement;
     this.sellButton = document.getElementById('sell-btn') as HTMLButtonElement;
     this.towerInfoPanel = document.getElementById('tower-info') as HTMLElement;
+
+    // Setup projectile callbacks
+    this.projectileCallbacks = {
+      onHit: (x, y, damage, isAoe) => {
+        visualEffects.createDamagePopup(x, y, damage, damage >= 30);
+        if (isAoe) {
+          visualEffects.createExplosion(x, y, 50, '#ff8800');
+          soundManager.play('explosion');
+        } else {
+          soundManager.play('hit');
+        }
+      },
+      onTrail: (x, y, color, size) => {
+        visualEffects.createTrailParticle(x, y, color, size);
+      },
+    };
 
     this.setupEventListeners();
     this.updateUI();
@@ -119,6 +141,10 @@ export class Game {
     }));
     this.currentSpawnIndex = 0;
 
+    // Play wave start sound and show announcement
+    soundManager.play('wave_start');
+    visualEffects.createWaveAnnouncement(this.currentWave + 1);
+
     this.updateUI();
   }
 
@@ -166,6 +192,7 @@ export class Game {
 
     this.gold -= towerConfig.cost;
     this.towers.push(new Tower(x, y, this.selectedTowerType));
+    soundManager.play('tower_place');
     this.updateUI();
   }
 
@@ -251,6 +278,7 @@ export class Game {
 
     this.gold -= cost;
     this.selectedTower.upgrade();
+    soundManager.play('tower_upgrade');
     this.updateUI();
     this.updateTowerInfoPanel();
   }
@@ -261,6 +289,7 @@ export class Game {
     this.gold += this.selectedTower.sellValue;
     this.towers = this.towers.filter((t) => t !== this.selectedTower);
     this.selectedTower = null;
+    soundManager.play('tower_sell');
     this.updateUI();
     this.updateTowerInfoPanel();
   }
@@ -314,6 +343,8 @@ export class Game {
   private nextWave(): void {
     this.currentWave++;
 
+    soundManager.play('wave_complete');
+
     if (this.currentWave >= CONFIG.waves.length) {
       this.victory();
       return;
@@ -326,7 +357,13 @@ export class Game {
   }
 
   private update(deltaTime: number): void {
+    // Always update visual effects
+    visualEffects.update(deltaTime);
+
     if (this.state !== 'playing') return;
+
+    // Don't process game logic during wave announcement
+    if (visualEffects.isWaveAnnouncementActive()) return;
 
     const waveConfig = this.getCurrentWaveConfig();
 
@@ -347,6 +384,7 @@ export class Game {
       if (enemy.hasReachedGoal()) {
         enemy.active = false;
         this.lives--;
+        soundManager.play('enemy_reach');
         this.updateUI();
 
         if (this.lives <= 0) {
@@ -356,9 +394,22 @@ export class Game {
       }
     }
 
-    // Update towers
+    // Update towers with projectile callbacks
     for (const tower of this.towers) {
-      tower.update(deltaTime, this.enemies, this.projectiles);
+      const oldProjectileCount = this.projectiles.length;
+      tower.update(deltaTime, this.enemies, this.projectiles, this.projectileCallbacks);
+
+      // Play shoot sound if new projectile was created
+      if (this.projectiles.length > oldProjectileCount) {
+        const towerType = tower.type;
+        if (towerType === 'cannon') {
+          soundManager.play('shoot_cannon');
+        } else if (towerType === 'slow') {
+          soundManager.play('shoot_slow');
+        } else {
+          soundManager.play('shoot_arrow');
+        }
+      }
     }
 
     // Update projectiles
@@ -372,6 +423,7 @@ export class Game {
       if (!enemy.active && enemy.hp <= 0 && !enemy.rewarded) {
         enemy.rewarded = true;
         this.gold += enemy.reward;
+        soundManager.play('enemy_die');
         this.updateUI();
       }
     }
@@ -415,8 +467,11 @@ export class Game {
       }
     }
 
-    // Draw wave info during waiting state
-    if (this.state === 'waiting' && this.currentWave < CONFIG.waves.length) {
+    // Draw visual effects (trails, explosions, damage popups)
+    visualEffects.render(ctx, CONFIG.canvas.width, CONFIG.canvas.height);
+
+    // Draw wave info during waiting state (only if no announcement active)
+    if (this.state === 'waiting' && this.currentWave < CONFIG.waves.length && !visualEffects.isWaveAnnouncementActive()) {
       const waveConfig = this.getCurrentWaveConfig();
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);
@@ -511,6 +566,8 @@ export class Game {
     this.startButton.disabled = true;
     this.startButton.textContent = 'Game Over';
 
+    soundManager.play('game_over');
+
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     this.ctx.fillRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);
 
@@ -534,6 +591,8 @@ export class Game {
     this.state = 'victory';
     this.startButton.disabled = true;
     this.startButton.textContent = 'Victory!';
+
+    soundManager.play('victory');
 
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     this.ctx.fillRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);

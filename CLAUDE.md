@@ -9,6 +9,7 @@ Vite + TypeScript + HTML5 Canvasで作成するタワーディフェンスゲー
 - **Build Tool**: Vite
 - **Language**: TypeScript
 - **Rendering**: HTML5 Canvas API
+- **Audio**: Howler.js
 - **Package Manager**: npm
 
 ## Directory Structure
@@ -24,7 +25,9 @@ tower-defense/
 │   │   ├── Tower.ts     # タワークラス
 │   │   ├── Enemy.ts     # 敵クラス
 │   │   └── Projectile.ts # 弾丸クラス
-│   ├── systems/         # ゲームシステム（将来用）
+│   ├── systems/         # ゲームシステム
+│   │   ├── SoundManager.ts    # サウンド管理
+│   │   └── VisualEffects.ts   # ビジュアルエフェクト
 │   ├── types/           # 型定義
 │   │   └── index.ts     # 共通型・設定
 │   └── utils/           # ユーティリティ
@@ -169,5 +172,49 @@ npx tsc --noEmit
    - パス描画
    - タワー描画（射程円付き）
    - 敵描画（HPバー付き）
-   - 弾丸描画
+   - 弾丸描画（軌跡エフェクト付き）
+   - ビジュアルエフェクト描画
    - オーバーレイ描画（待機中/一時停止/終了時）
+
+## Visual Effects (Phase 5)
+
+### ダメージポップアップ
+- 敵がダメージを受けるとダメージ数値が表示
+- フェードアウトしながら上昇
+- クリティカル（30以上）は黄色で大きく表示
+
+### 弾丸軌跡
+- 各弾丸タイプに応じた色の軌跡パーティクル
+  - Archer: 緑 (#88ff88)
+  - Cannon: オレンジ (#ff8844)
+  - Slow: 青 (#88ccff)
+- パーティクルは徐々にフェードアウト
+
+### 爆発エフェクト
+- Cannonの範囲攻撃時に爆発リングを表示
+- 放射状グラデーションで炎のような効果
+
+### ウェーブ開始アニメーション
+- 「WAVE X START!」のアナウンス表示
+- 拡大→保持→フェードアウトの3フェーズ
+
+## Sound Effects (Phase 5)
+
+Howler.jsを使用した合成サウンド:
+
+| Sound | 説明 | トリガー |
+|-------|------|----------|
+| shoot_arrow | 矢の発射音 | Archerタワー攻撃時 |
+| shoot_cannon | 砲撃音 | Cannonタワー攻撃時 |
+| shoot_slow | スロー弾発射音 | Slowタワー攻撃時 |
+| hit | ヒット音 | 弾丸が敵に命中時 |
+| explosion | 爆発音 | Cannon範囲攻撃時 |
+| enemy_die | 敵撃破音 | 敵が倒れた時 |
+| enemy_reach | 敵到達音 | 敵がゴールに到達時 |
+| tower_place | タワー設置音 | タワー配置時 |
+| tower_upgrade | アップグレード音 | タワーレベルアップ時 |
+| tower_sell | 売却音 | タワー売却時 |
+| wave_start | ウェーブ開始音 | ウェーブ開始時 |
+| wave_complete | ウェーブ完了音 | ウェーブクリア時 |
+| game_over | ゲームオーバー音 | ゲームオーバー時 |
+| victory | 勝利音 | 全ウェーブクリア時 |

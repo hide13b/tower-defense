@@ -1,4 +1,5 @@
 import type { Position, TowerType, TowerLevelStats } from '../types';
+import type { ProjectileCallbacks } from './Projectile';
 import { CONFIG, TOWER_CONFIGS } from '../types';
 import { Enemy } from './Enemy';
 import { Projectile } from './Projectile';
@@ -92,13 +93,18 @@ export class Tower {
     return true;
   }
 
-  update(deltaTime: number, enemies: Enemy[], projectiles: Projectile[]): void {
+  update(
+    deltaTime: number,
+    enemies: Enemy[],
+    projectiles: Projectile[],
+    callbacks?: ProjectileCallbacks
+  ): void {
     this.fireCooldown -= deltaTime;
 
     if (this.fireCooldown <= 0) {
       const target = this.findTarget(enemies);
       if (target) {
-        this.fire(target, projectiles, enemies);
+        this.fire(target, projectiles, enemies, callbacks);
         this.fireCooldown = 1 / this.fireRate;
       }
     }
@@ -121,7 +127,12 @@ export class Tower {
     return closest;
   }
 
-  private fire(target: Enemy, projectiles: Projectile[], enemies: Enemy[]): void {
+  private fire(
+    target: Enemy,
+    projectiles: Projectile[],
+    enemies: Enemy[],
+    callbacks?: ProjectileCallbacks
+  ): void {
     const stats = this.getCurrentStats();
     const projectile = new Projectile(
       this.x,
@@ -132,7 +143,8 @@ export class Tower {
       enemies,
       stats.aoeRadius,
       stats.slowAmount,
-      stats.slowDuration
+      stats.slowDuration,
+      callbacks
     );
     projectiles.push(projectile);
   }
