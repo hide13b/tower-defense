@@ -26,6 +26,7 @@ export class Projectile {
   private callbacks: ProjectileCallbacks;
   private trailTimer: number = 0;
   private readonly trailInterval: number = 0.02;
+  private animationTime: number = 0;
 
   constructor(
     x: number,
@@ -78,6 +79,9 @@ export class Projectile {
   }
 
   update(deltaTime: number): void {
+    // Update animation
+    this.animationTime += deltaTime;
+
     // Update direction to track target
     if (this.target.active) {
       this.updateDirection();
@@ -142,44 +146,140 @@ export class Projectile {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
     if (this.towerType === 'cannon') {
-      // Cannon ball - larger, darker with glow
-      ctx.shadowColor = '#ff6600';
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = '#333';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      ctx.fillStyle = '#666';
-      ctx.beginPath();
-      ctx.arc(this.x - 2, this.y - 2, this.size / 2, 0, Math.PI * 2);
-      ctx.fill();
+      this.renderCannonBall(ctx);
     } else if (this.towerType === 'slow') {
-      // Slow projectile - blue with glow
-      ctx.shadowColor = '#4488ff';
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = '#88ccff';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Inner bright core
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-      ctx.fill();
+      this.renderMagicOrb(ctx);
     } else {
-      // Arrow - green with glow
-      ctx.shadowColor = '#44ff44';
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = '#88ff88';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      this.renderArrow(ctx);
     }
+
+    ctx.restore();
+  }
+
+  private renderArrow(ctx: CanvasRenderingContext2D): void {
+    // Rotate to face direction
+    const angle = Math.atan2(this.dirY, this.dirX);
+    ctx.rotate(angle);
+
+    // Arrow glow
+    ctx.shadowColor = '#44ff44';
+    ctx.shadowBlur = 8;
+
+    // Arrow body
+    const gradient = ctx.createLinearGradient(-this.size * 2, 0, this.size, 0);
+    gradient.addColorStop(0, 'rgba(136, 255, 136, 0)');
+    gradient.addColorStop(0.5, '#88ff88');
+    gradient.addColorStop(1, '#44cc44');
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(this.size, 0);
+    ctx.lineTo(-this.size, -this.size / 2);
+    ctx.lineTo(-this.size / 2, 0);
+    ctx.lineTo(-this.size, this.size / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sparkle
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(this.size / 2, 0, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+  }
+
+  private renderCannonBall(ctx: CanvasRenderingContext2D): void {
+    const pulse = 1 + Math.sin(this.animationTime * 20) * 0.1;
+
+    // Outer glow
+    ctx.shadowColor = '#ff6600';
+    ctx.shadowBlur = 12;
+
+    // Main ball
+    const gradient = ctx.createRadialGradient(
+      -this.size / 3,
+      -this.size / 3,
+      0,
+      0,
+      0,
+      this.size * pulse
+    );
+    gradient.addColorStop(0, '#666');
+    gradient.addColorStop(0.6, '#333');
+    gradient.addColorStop(1, '#111');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fire trail effect
+    ctx.shadowBlur = 0;
+    const fireGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size * 0.6);
+    fireGradient.addColorStop(0, 'rgba(255, 200, 100, 0.8)');
+    fireGradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+    ctx.fillStyle = fireGradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(-this.size / 3, -this.size / 3, this.size / 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private renderMagicOrb(ctx: CanvasRenderingContext2D): void {
+    const pulse = 1 + Math.sin(this.animationTime * 15) * 0.15;
+    const rotation = this.animationTime * 5;
+
+    // Outer aura
+    ctx.shadowColor = '#88ccff';
+    ctx.shadowBlur = 15;
+
+    // Aura rings
+    ctx.strokeStyle = 'rgba(136, 204, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size * 1.5 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Main orb
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size * pulse);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.3, '#aaddff');
+    gradient.addColorStop(0.7, '#6699ff');
+    gradient.addColorStop(1, '#4466cc');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Snowflake pattern
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 + rotation;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(
+        Math.cos(angle) * this.size * 0.7,
+        Math.sin(angle) * this.size * 0.7
+      );
+      ctx.stroke();
+    }
+
+    // Center sparkle
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size / 3, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

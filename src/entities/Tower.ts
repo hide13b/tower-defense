@@ -20,6 +20,10 @@ export class Tower {
   private _range: number;
   private _damage: number;
 
+  // Animation
+  private animationTime: number = 0;
+  private attackAnimation: number = 0;
+
   constructor(x: number, y: number, type: TowerType) {
     const config = TOWER_CONFIGS[type];
     const levelStats = config.levels[0];
@@ -99,6 +103,12 @@ export class Tower {
     projectiles: Projectile[],
     callbacks?: ProjectileCallbacks
   ): void {
+    // Update animation
+    this.animationTime += deltaTime;
+    if (this.attackAnimation > 0) {
+      this.attackAnimation -= deltaTime * 5;
+    }
+
     this.fireCooldown -= deltaTime;
 
     if (this.fireCooldown <= 0) {
@@ -106,6 +116,7 @@ export class Tower {
       if (target) {
         this.fire(target, projectiles, enemies, callbacks);
         this.fireCooldown = 1 / this.fireRate;
+        this.attackAnimation = 1; // Trigger attack animation
       }
     }
   }
@@ -161,63 +172,213 @@ export class Tower {
     if (isSelected) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2 + 5, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.size / 2 + 8, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Tower base
-    ctx.fillStyle = this.color;
+    // Idle animation (gentle bobbing)
+    const bobAmount = Math.sin(this.animationTime * 3) * 2;
+    const attackScale = 1 + this.attackAnimation * 0.2;
+
+    ctx.save();
+    ctx.translate(this.x, this.y + bobAmount);
+    ctx.scale(attackScale, attackScale);
 
     if (this.type === 'cannon') {
-      // Cannon - circular base
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-      ctx.fill();
-      // Barrel
-      ctx.fillStyle = this.secondaryColor;
-      ctx.fillRect(this.x - 4, this.y - this.size / 2 - 5, 8, 15);
+      this.renderCannon(ctx);
     } else if (this.type === 'slow') {
-      // Slow tower - hexagonal
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3 - Math.PI / 6;
-        const px = this.x + (this.size / 2) * Math.cos(angle);
-        const py = this.y + (this.size / 2) * Math.sin(angle);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      // Crystal
-      ctx.fillStyle = '#aaddff';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 4, 0, Math.PI * 2);
-      ctx.fill();
+      this.renderMage(ctx);
     } else {
-      // Archer - square base
-      ctx.fillRect(
-        this.x - this.size / 2,
-        this.y - this.size / 2,
-        this.size,
-        this.size
-      );
-      // Tower top
-      ctx.fillStyle = this.secondaryColor;
-      ctx.beginPath();
-      ctx.moveTo(this.x, this.y - this.size / 2 - 8);
-      ctx.lineTo(this.x + this.size / 3, this.y - this.size / 4);
-      ctx.lineTo(this.x - this.size / 3, this.y - this.size / 4);
-      ctx.closePath();
-      ctx.fill();
+      this.renderArcher(ctx);
     }
+
+    ctx.restore();
 
     // Level indicator (stars)
     if (this._level > 1) {
       ctx.fillStyle = '#ffdd00';
-      ctx.font = '10px sans-serif';
+      ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       const stars = '★'.repeat(this._level - 1);
-      ctx.fillText(stars, this.x, this.y + this.size / 2 + 12);
+      ctx.fillText(stars, this.x, this.y + this.size / 2 + 14);
     }
+  }
+
+  private renderArcher(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+
+    // Body (round)
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, s / 2);
+    gradient.addColorStop(0, '#88cc88');
+    gradient.addColorStop(1, '#448844');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, s / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hood
+    ctx.fillStyle = '#336633';
+    ctx.beginPath();
+    ctx.arc(0, -s / 4, s / 3, Math.PI, 0);
+    ctx.fill();
+
+    // Eyes
+    const eyeOffset = s / 6;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(-eyeOffset, -s / 8, s / 8, s / 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(eyeOffset, -s / 8, s / 8, s / 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(-eyeOffset + 1, -s / 8, s / 16, 0, Math.PI * 2);
+    ctx.arc(eyeOffset + 1, -s / 8, s / 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Blush
+    ctx.fillStyle = 'rgba(255, 150, 150, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(-s / 4, s / 10, s / 8, s / 12, 0, 0, Math.PI * 2);
+    ctx.ellipse(s / 4, s / 10, s / 8, s / 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bow
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(s / 2 + 2, 0, s / 3, -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+
+    // Bow string
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(s / 2 + 2, -s / 3);
+    ctx.lineTo(s / 2 + 2, s / 3);
+    ctx.stroke();
+  }
+
+  private renderCannon(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+    const recoil = this.attackAnimation * -5;
+
+    // Body (round with metallic look)
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, s / 2);
+    gradient.addColorStop(0, '#ff9966');
+    gradient.addColorStop(1, '#cc5522');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 2, s / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cannon barrel
+    ctx.fillStyle = '#555';
+    ctx.save();
+    ctx.translate(0, -s / 2 + recoil);
+    ctx.fillRect(-s / 5, -s / 2, s / 2.5, s / 2);
+    // Barrel tip
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-s / 4, -s / 2 - 3, s / 2, 5);
+    ctx.restore();
+
+    // Eyes
+    const eyeOffset = s / 5;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-eyeOffset, 0, s / 7, 0, Math.PI * 2);
+    ctx.arc(eyeOffset, 0, s / 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils (looking up at barrel)
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(-eyeOffset, -s / 16, s / 14, 0, Math.PI * 2);
+    ctx.arc(eyeOffset, -s / 16, s / 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Determined mouth
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s / 6, s / 5);
+    ctx.lineTo(s / 6, s / 5);
+    ctx.stroke();
+  }
+
+  private renderMage(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+    const floatOffset = Math.sin(this.animationTime * 4) * 3;
+
+    ctx.save();
+    ctx.translate(0, floatOffset);
+
+    // Magic aura
+    const auraSize = s / 2 + 5 + Math.sin(this.animationTime * 5) * 3;
+    const auraGradient = ctx.createRadialGradient(0, 0, s / 4, 0, 0, auraSize);
+    auraGradient.addColorStop(0, 'rgba(100, 150, 255, 0)');
+    auraGradient.addColorStop(0.7, 'rgba(100, 150, 255, 0.2)');
+    auraGradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+    ctx.fillStyle = auraGradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, auraSize, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body (round with mystical look)
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, s / 2);
+    gradient.addColorStop(0, '#aaccff');
+    gradient.addColorStop(1, '#6688cc');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, s / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wizard hat
+    ctx.fillStyle = '#4455aa';
+    ctx.beginPath();
+    ctx.moveTo(0, -s / 2 - s / 2);
+    ctx.lineTo(s / 3, -s / 4);
+    ctx.lineTo(-s / 3, -s / 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hat brim
+    ctx.fillStyle = '#3344aa';
+    ctx.beginPath();
+    ctx.ellipse(0, -s / 4, s / 2.5, s / 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes (mystical)
+    ctx.fillStyle = '#fff';
+    const eyeOffset = s / 6;
+    ctx.beginPath();
+    ctx.arc(-eyeOffset, 0, s / 8, 0, Math.PI * 2);
+    ctx.arc(eyeOffset, 0, s / 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glowing pupils
+    ctx.fillStyle = '#88ffff';
+    ctx.beginPath();
+    ctx.arc(-eyeOffset, 0, s / 16, 0, Math.PI * 2);
+    ctx.arc(eyeOffset, 0, s / 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Magic staff
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(s / 2 + 3, -s / 4);
+    ctx.lineTo(s / 2 + 3, s / 2);
+    ctx.stroke();
+
+    // Crystal on staff
+    const crystalGlow = 0.5 + Math.sin(this.animationTime * 6) * 0.3;
+    ctx.fillStyle = `rgba(150, 200, 255, ${crystalGlow})`;
+    ctx.beginPath();
+    ctx.arc(s / 2 + 3, -s / 3, s / 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }
 }

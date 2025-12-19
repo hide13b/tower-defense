@@ -31,6 +31,10 @@ export class Enemy {
   private currentPathIndex: number = 0;
   private distanceAlongSegment: number = 0;
 
+  // Animation
+  private animationTime: number = 0;
+  private previousPositions: { x: number; y: number }[] = [];
+
   constructor(path: PathPoint[], config: EnemySpawnConfig) {
     const typeConfig = ENEMY_CONFIGS[config.type];
 
@@ -61,6 +65,17 @@ export class Enemy {
   }
 
   update(deltaTime: number): void {
+    // Update animation
+    this.animationTime += deltaTime;
+
+    // Store previous position for trail (Speed type)
+    if (this.type === 'speed') {
+      this.previousPositions.unshift({ x: this.x, y: this.y });
+      if (this.previousPositions.length > 5) {
+        this.previousPositions.pop();
+      }
+    }
+
     // Update slow effect
     if (this.slowTimer > 0) {
       this.slowTimer -= deltaTime;
@@ -150,31 +165,12 @@ export class Enemy {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    // Enemy body
-    ctx.fillStyle = this.color;
-
     if (this.type === 'tank') {
-      // Tank is circular
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
-      ctx.fill();
+      this.renderGolem(ctx);
     } else if (this.type === 'speed') {
-      // Speed is diamond
-      ctx.beginPath();
-      ctx.moveTo(this.x, this.y - this.size / 2);
-      ctx.lineTo(this.x + this.size / 2, this.y);
-      ctx.lineTo(this.x, this.y + this.size / 2);
-      ctx.lineTo(this.x - this.size / 2, this.y);
-      ctx.closePath();
-      ctx.fill();
+      this.renderNinja(ctx);
     } else {
-      // Normal is square
-      ctx.fillRect(
-        this.x - this.size / 2,
-        this.y - this.size / 2,
-        this.size,
-        this.size
-      );
+      this.renderSlime(ctx);
     }
 
     // Slow indicator
@@ -182,21 +178,249 @@ export class Enemy {
       ctx.strokeStyle = '#88ccff';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size / 2 + 3, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.size / 2 + 5, 0, Math.PI * 2);
       ctx.stroke();
+
+      // Ice crystals
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2 + this.animationTime * 2;
+        const cx = this.x + Math.cos(angle) * (this.size / 2 + 8);
+        const cy = this.y + Math.sin(angle) * (this.size / 2 + 8);
+        ctx.fillStyle = '#aaeeff';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 4);
+        ctx.lineTo(cx + 3, cy);
+        ctx.lineTo(cx, cy + 4);
+        ctx.lineTo(cx - 3, cy);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     // Health bar background
-    const barWidth = this.size + 4;
-    const barHeight = 4;
-    const barY = this.y - this.size / 2 - 8;
+    const barWidth = this.size + 6;
+    const barHeight = 5;
+    const barY = this.y - this.size / 2 - 10;
 
-    ctx.fillStyle = '#333';
-    ctx.fillRect(this.x - barWidth / 2, barY, barWidth, barHeight);
+    ctx.fillStyle = '#222';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(this.x - barWidth / 2, barY, barWidth, barHeight, 2);
+    ctx.fill();
+    ctx.stroke();
 
     // Health bar fill
     const healthPercent = this.hp / this.maxHp;
-    ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.25 ? '#ffff44' : '#ff4444';
-    ctx.fillRect(this.x - barWidth / 2, barY, barWidth * healthPercent, barHeight);
+    const healthGradient = ctx.createLinearGradient(
+      this.x - barWidth / 2,
+      barY,
+      this.x - barWidth / 2 + barWidth * healthPercent,
+      barY
+    );
+    if (healthPercent > 0.5) {
+      healthGradient.addColorStop(0, '#66ff66');
+      healthGradient.addColorStop(1, '#44cc44');
+    } else if (healthPercent > 0.25) {
+      healthGradient.addColorStop(0, '#ffff66');
+      healthGradient.addColorStop(1, '#cccc44');
+    } else {
+      healthGradient.addColorStop(0, '#ff6666');
+      healthGradient.addColorStop(1, '#cc4444');
+    }
+    ctx.fillStyle = healthGradient;
+    ctx.beginPath();
+    ctx.roundRect(
+      this.x - barWidth / 2 + 1,
+      barY + 1,
+      (barWidth - 2) * healthPercent,
+      barHeight - 2,
+      1
+    );
+    ctx.fill();
+  }
+
+  private renderSlime(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+    const squish = 1 + Math.sin(this.animationTime * 8) * 0.1;
+    const squishY = 1 / squish;
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.scale(squish, squishY);
+
+    // Slime body
+    const gradient = ctx.createRadialGradient(0, -s / 6, 0, 0, 0, s / 2);
+    gradient.addColorStop(0, '#ff8888');
+    gradient.addColorStop(0.7, '#ff4444');
+    gradient.addColorStop(1, '#cc2222');
+    ctx.fillStyle = gradient;
+
+    // Draw slime shape
+    ctx.beginPath();
+    ctx.moveTo(-s / 2, s / 4);
+    ctx.quadraticCurveTo(-s / 2, -s / 2, 0, -s / 2);
+    ctx.quadraticCurveTo(s / 2, -s / 2, s / 2, s / 4);
+    ctx.quadraticCurveTo(s / 4, s / 2, 0, s / 2);
+    ctx.quadraticCurveTo(-s / 4, s / 2, -s / 2, s / 4);
+    ctx.fill();
+
+    // Shine
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(-s / 5, -s / 4, s / 6, s / 8, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    const eyeOffset = s / 5;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(-eyeOffset, -s / 8, s / 7, s / 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(eyeOffset, -s / 8, s / 7, s / 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(-eyeOffset + 1, -s / 10, s / 14, 0, Math.PI * 2);
+    ctx.arc(eyeOffset + 1, -s / 10, s / 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cute mouth
+    ctx.strokeStyle = '#aa2222';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, s / 8, s / 6, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  private renderNinja(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+
+    // Draw afterimages
+    for (let i = this.previousPositions.length - 1; i >= 0; i--) {
+      const pos = this.previousPositions[i];
+      const alpha = (1 - i / this.previousPositions.length) * 0.3;
+      ctx.globalAlpha = alpha;
+      this.drawNinjaBody(ctx, pos.x, pos.y, s * 0.9);
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw main body
+    this.drawNinjaBody(ctx, this.x, this.y, s);
+  }
+
+  private drawNinjaBody(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    s: number
+  ): void {
+    // Body
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, s / 2);
+    gradient.addColorStop(0, '#ffcc66');
+    gradient.addColorStop(1, '#cc8800');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, s / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Headband
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x - s / 2, y - s / 6, s, s / 4);
+
+    // Headband tails
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + s / 2, y - s / 8);
+    ctx.quadraticCurveTo(
+      x + s / 2 + s / 4,
+      y - s / 4,
+      x + s / 2 + s / 3,
+      y
+    );
+    ctx.stroke();
+
+    // Eyes (determined)
+    ctx.fillStyle = '#fff';
+    const eyeOffset = s / 5;
+    ctx.beginPath();
+    ctx.ellipse(x - eyeOffset, y, s / 8, s / 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + eyeOffset, y, s / 8, s / 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Focused pupils
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(x - eyeOffset + 2, y, s / 16, 0, Math.PI * 2);
+    ctx.arc(x + eyeOffset + 2, y, s / 16, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private renderGolem(ctx: CanvasRenderingContext2D): void {
+    const s = this.size;
+    const walkOffset = Math.sin(this.animationTime * 6) * 2;
+
+    ctx.save();
+    ctx.translate(this.x, this.y + walkOffset);
+
+    // Rock body
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, s / 2);
+    gradient.addColorStop(0, '#aa77cc');
+    gradient.addColorStop(0.6, '#8855aa');
+    gradient.addColorStop(1, '#553377');
+    ctx.fillStyle = gradient;
+
+    // Main body (irregular rock shape)
+    ctx.beginPath();
+    ctx.moveTo(-s / 2, s / 4);
+    ctx.lineTo(-s / 2.5, -s / 4);
+    ctx.lineTo(-s / 4, -s / 2);
+    ctx.lineTo(s / 4, -s / 2);
+    ctx.lineTo(s / 2.5, -s / 4);
+    ctx.lineTo(s / 2, s / 4);
+    ctx.lineTo(s / 3, s / 2);
+    ctx.lineTo(-s / 3, s / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Stone texture lines
+    ctx.strokeStyle = '#442266';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-s / 4, -s / 3);
+    ctx.lineTo(-s / 6, s / 4);
+    ctx.moveTo(s / 5, -s / 4);
+    ctx.lineTo(s / 4, s / 3);
+    ctx.stroke();
+
+    // Glowing eyes
+    const eyeGlow = 0.7 + Math.sin(this.animationTime * 4) * 0.3;
+    ctx.fillStyle = `rgba(255, 100, 255, ${eyeGlow})`;
+    ctx.beginPath();
+    ctx.arc(-s / 5, -s / 6, s / 8, 0, Math.PI * 2);
+    ctx.arc(s / 5, -s / 6, s / 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye cores
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-s / 5, -s / 6, s / 16, 0, Math.PI * 2);
+    ctx.arc(s / 5, -s / 6, s / 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Angry mouth
+    ctx.strokeStyle = '#331155';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-s / 4, s / 6);
+    ctx.lineTo(0, s / 4);
+    ctx.lineTo(s / 4, s / 6);
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
